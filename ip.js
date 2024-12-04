@@ -1,32 +1,53 @@
 function getLocalIP() {
     return new Promise((resolve, reject) => {
-        // 使用WebRTC来获取本地IP地址
-        const RTCPeerConnection = window.RTCPeerConnection || window.webkitRTCPeerConnection;
-        const pc = new RTCPeerConnection({
-            iceServers: []
-        });
-
-        pc.createDataChannel("");
-        pc.createOffer()
-            .then(offer => pc.setLocalDescription(offer))
-            .catch(err => reject(err));
-
-        pc.onicecandidate = (event) => {
-            if (!event.candidate) return;
-
-            // 从candidate中提取IP地址
-            const ipRegex = /([0-9]{1,3}(\.[0-9]{1,3}){3})/;
-            const match = ipRegex.exec(event.candidate.candidate);
-            
-            if (match) {
-                const ip = match[1];
-                if (ip.substr(0, 3) !== '127') { // 排除localhost
-                    resolve(ip);
-                    pc.onicecandidate = null;
-                    pc.close();
-                }
+        try {
+            // 检查WebRTC支持
+            if (!window.RTCPeerConnection) {
+                throw new Error('浏览器不支持WebRTC');
             }
-        };
+
+            const pc = new RTCPeerConnection({
+                iceServers: []
+            });
+
+            // 添加超时处理
+            setTimeout(() => {
+                if (pc.connectionState !== 'closed') {
+                    pc.close();
+                    reject(new Error('获取IP超时'));
+                }
+            }, 5000);
+
+            pc.createDataChannel("");
+            pc.createOffer()
+                .then(offer => pc.setLocalDescription(offer))
+                .catch(err => {
+                    console.error('创建offer失败:', err);
+                    reject(err);
+                });
+
+            pc.onicecandidate = (event) => {
+                if (!event.candidate) return;
+
+                console.log('获取到candidate:', event.candidate.candidate);
+                
+                const ipRegex = /([0-9]{1,3}(\.[0-9]{1,3}){3})/;
+                const match = ipRegex.exec(event.candidate.candidate);
+                
+                if (match) {
+                    const ip = match[1];
+                    console.log('找到IP:', ip);
+                    if (ip.substr(0, 3) !== '127') {
+                        resolve(ip);
+                        pc.onicecandidate = null;
+                        pc.close();
+                    }
+                }
+            };
+        } catch (err) {
+            console.error('获取IP时发生错误:', err);
+            reject(err);
+        }
     });
 }
 
@@ -34,12 +55,16 @@ function getLocalIP() {
 window.addEventListener('load', () => {
     const ipDisplay = document.getElementById('ipAddress');
     
+    ipDisplay.textContent = '正在获取IP地址...';
+    console.log('开始获取IP地址');
+    
     getLocalIP()
         .then(ip => {
+            console.log('成功获取到IP:', ip);
             ipDisplay.textContent = ip;
         })
         .catch(err => {
-            ipDisplay.textContent = '无法获取IP地址';
             console.error('获取IP地址失败:', err);
+            ipDisplay.textContent = '无法获取IP地址: ' + err.message;
         });
-});
+}); 

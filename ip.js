@@ -42,4 +42,4 @@ window.addEventListener('load', () => {
             ipDisplay.textContent = '无法获取IP地址';
             console.error('获取IP地址失败:', err);
         });
-}); 
+});
